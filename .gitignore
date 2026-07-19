@@ -1,0 +1,24 @@
+# Реальные данные клиентов — никогда в git
+data/real/
+
+# Секреты
+.env
+.env.*
+*.pfx
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node
+node_modules/
+
+# Flutter/Dart
+.dart_tool/
+build/
+
+# IDE
+.idea/
+.vscode/
