@@ -4,6 +4,7 @@ data/real/
 # Секреты
 .env
 .env.*
+!.env.example
 *.pfx
 *.key
 

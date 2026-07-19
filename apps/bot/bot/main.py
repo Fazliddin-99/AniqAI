@@ -10,7 +10,12 @@ import base64
 import os
 import uuid
 
-import httpx
+from dotenv import find_dotenv, load_dotenv
+
+# Загрузить .env до чтения BOT_TOKEN (Bot создаётся на уровне модуля).
+load_dotenv(find_dotenv(usecwd=True))
+
+import httpx  # noqa: E402
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import CommandStart
 from aiogram.types import (

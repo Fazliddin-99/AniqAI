@@ -1,8 +1,13 @@
 """API очереди ревью. Запуск: uv run uvicorn app.main:app --reload"""
 
-from fastapi import FastAPI, HTTPException
+from dotenv import find_dotenv, load_dotenv
 
-from .agent.api import router as agent_router
+# Загрузить .env до импорта агента/клиента 1С (они читают переменные при импорте).
+load_dotenv(find_dotenv(usecwd=True))
+
+from fastapi import FastAPI, HTTPException  # noqa: E402
+
+from .agent.api import router as agent_router  # noqa: E402
 from .history import load_history
 from .models import Esf, PostingEntry, ReviewItem, ReviewStatus
 from .pipeline import process

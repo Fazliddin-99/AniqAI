@@ -23,17 +23,19 @@
 ## Фича 1 — Telegram-приём документов
 
 Дизайн: [docs/feature-01-telegram-intake.md](docs/feature-01-telegram-intake.md).
-Запуск локально (три процесса):
+
+Настройка (один раз): скопируйте `.env.example` → `.env` в корне и заполните
+`ANTHROPIC_API_KEY`, `BOT_TOKEN` (от @BotFather), `BOT_WHITELIST` (ваш Telegram id).
+`.env` читается всеми процессами и в git не попадает.
 
 ```bash
-# 1. Мок 1С
-cd apps/onec-mock && uv run uvicorn app.main:app --port 8100
+cp .env.example .env   # PowerShell: Copy-Item .env.example .env
+```
 
-# 2. Бэкенд (ядро агента + API). Нужен ключ Claude.
-cd apps/backend && ONEC_BASE_URL=http://localhost:8100 \
-  uv run uvicorn app.main:app --port 8000
+Запуск локально (три терминала):
 
-# 3. Бот
-cd apps/bot && BOT_TOKEN=<токен> BACKEND_URL=http://localhost:8000 \
-  BOT_WHITELIST="<telegram_user_id>:demo" uv run python -m bot.main
+```bash
+cd apps/onec-mock && uv run uvicorn app.main:app --port 8100   # 1. мок 1С
+cd apps/backend  && uv run uvicorn app.main:app --port 8000    # 2. бэкенд + агент
+cd apps/bot      && uv run python -m bot.main                  # 3. бот
 ```
