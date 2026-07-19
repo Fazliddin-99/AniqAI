@@ -1,0 +1,29 @@
+{
+  "factura_id": "F-2026-000102",
+  "factura_no": "1187",
+  "factura_date": "2026-07-16",
+  "seller_name": "OOO \"MEGA TRADE GROUP\"",
+  "seller_tin": "304444555",
+  "buyer_name": "OOO \"DEMO KOMPANIYA\"",
+  "buyer_tin": "305555666",
+  "items": [
+    {
+      "name": "Смартфон Infinix Hot 40i",
+      "catalog_code": "08517140001000000",
+      "count": 30,
+      "price": 1450000,
+      "delivery_sum": 43500000,
+      "vat_rate": 12,
+      "vat_sum": 5220000
+    },
+    {
+      "name": "Чехол силиконовый универсальный",
+      "catalog_code": "03926909001000000",
+      "count": 100,
+      "price": 18000,
+      "delivery_sum": 1800000,
+      "vat_rate": 12,
+      "vat_sum": 216000
+    }
+  ]
+}

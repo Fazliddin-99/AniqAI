@@ -1,0 +1,20 @@
+{
+  "factura_id": "F-2026-000103",
+  "factura_no": "77",
+  "factura_date": "2026-07-17",
+  "seller_name": "OOO \"REKLAMA PRO\"",
+  "seller_tin": "306777888",
+  "buyer_name": "OOO \"DEMO KOMPANIYA\"",
+  "buyer_tin": "305555666",
+  "items": [
+    {
+      "name": "Услуги по размещению наружной рекламы, июль 2026",
+      "catalog_code": "10731001001000000",
+      "count": 1,
+      "price": 12000000,
+      "delivery_sum": 12000000,
+      "vat_rate": 12,
+      "vat_sum": 1440000
+    }
+  ]
+}

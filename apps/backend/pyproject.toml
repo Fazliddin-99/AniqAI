@@ -1,0 +1,14 @@
+[project]
+name = "accountant-backend"
+version = "0.1.0"
+description = "Оркестратор: пайплайн ЭСФ, классификатор проводок, API очереди ревью"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "anthropic>=0.116",
+    "pydantic>=2.7",
+]
+
+[tool.uv]
+package = false

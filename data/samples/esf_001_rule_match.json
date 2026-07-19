@@ -1,0 +1,20 @@
+{
+  "factura_id": "F-2026-000101",
+  "factura_no": "245",
+  "factura_date": "2026-07-15",
+  "seller_name": "OOO \"QURILISH SAVDO\"",
+  "seller_tin": "301234567",
+  "buyer_name": "OOO \"DEMO KOMPANIYA\"",
+  "buyer_tin": "305555666",
+  "items": [
+    {
+      "name": "Цемент М400, мешок 50 кг",
+      "catalog_code": "06810001001000000",
+      "count": 200,
+      "price": 42000,
+      "delivery_sum": 8400000,
+      "vat_rate": 12,
+      "vat_sum": 1008000
+    }
+  ]
+}

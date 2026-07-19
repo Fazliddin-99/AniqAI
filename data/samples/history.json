@@ -1,0 +1,62 @@
+[
+  {
+    "seller_tin": "301234567",
+    "seller_name": "OOO \"QURILISH SAVDO\"",
+    "catalog_code": "06810001001000000",
+    "item_name": "Цемент М400, мешок 50 кг",
+    "debit": "1010",
+    "credit": "6010",
+    "vat_debit": "4410",
+    "comment": "материалы для производства"
+  },
+  {
+    "seller_tin": "301234567",
+    "seller_name": "OOO \"QURILISH SAVDO\"",
+    "catalog_code": "06810002001000000",
+    "item_name": "Песок строительный, м3",
+    "debit": "1010",
+    "credit": "6010",
+    "vat_debit": "4410",
+    "comment": "материалы для производства"
+  },
+  {
+    "seller_tin": "302222333",
+    "seller_name": "OOO \"TEXNO OLAM\"",
+    "catalog_code": "08471030001000000",
+    "item_name": "Ноутбук HP 250 G9",
+    "debit": "0830",
+    "credit": "6010",
+    "vat_debit": "4410",
+    "comment": "приобретение основных средств"
+  },
+  {
+    "seller_tin": "303333444",
+    "seller_name": "OOO \"OZIQ-OVQAT DISTRIBUTION\"",
+    "catalog_code": "02201001001000000",
+    "item_name": "Вода питьевая 19л",
+    "debit": "9420",
+    "credit": "6010",
+    "vat_debit": null,
+    "comment": "административные расходы, НДС не зачитывается"
+  },
+  {
+    "seller_tin": "304444555",
+    "seller_name": "OOO \"MEGA TRADE GROUP\"",
+    "catalog_code": "08517120001000000",
+    "item_name": "Смартфон Samsung Galaxy A15",
+    "debit": "2910",
+    "credit": "6010",
+    "vat_debit": "4410",
+    "comment": "товары для перепродажи"
+  },
+  {
+    "seller_tin": "304444555",
+    "seller_name": "OOO \"MEGA TRADE GROUP\"",
+    "catalog_code": "08517130001000000",
+    "item_name": "Смартфон Xiaomi Redmi 13C",
+    "debit": "2910",
+    "credit": "6010",
+    "vat_debit": "4410",
+    "comment": "товары для перепродажи"
+  }
+]
