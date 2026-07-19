@@ -1,5 +1,6 @@
 """Ядро агента-приёмщика: диалоговый цикл tool use с сохранением истории по чату.
 
+Не зависит от конкретной LLM — работает через провайдер (providers.get_provider).
 Синхронный код — бот (async/aiogram) вызывает process_turn через asyncio.to_thread.
 """
 
@@ -7,15 +8,22 @@ import json
 from dataclasses import dataclass, field
 from typing import Literal
 
-import anthropic
 from copilot_shared import OperationDraft
 from pydantic import ValidationError
 
 from . import onec_client
 from .prompt import SYSTEM
+from .providers import (
+    DocumentBlock,
+    ImageBlock,
+    LlmProvider,
+    Message,
+    TextBlock,
+    ToolResultBlock,
+    get_provider,
+)
 from .tools import ALL_TOOLS
 
-MODEL = "claude-opus-4-8"
 MAX_TOOL_ITERATIONS = 6
 
 
@@ -30,8 +38,8 @@ class Attachment:
 class TurnResult:
     """Итог хода агента. Ровно одно из полей содержательно."""
 
-    reply_text: str | None = None          # вопрос / отказ / инфо — отправить пользователю
-    proposal: OperationDraft | None = None  # если задано — бот рисует карточку подтверждения
+    reply_text: str | None = None
+    proposal: OperationDraft | None = None
 
 
 @dataclass
@@ -39,26 +47,20 @@ class AgentSession:
     """История диалога одного чата. tenant — компания (база 1С)."""
 
     tenant: str
-    messages: list[dict] = field(default_factory=list)
-    _client: anthropic.Anthropic = field(default_factory=anthropic.Anthropic)
+    messages: list[Message] = field(default_factory=list)
+    provider: LlmProvider = field(default_factory=get_provider)
 
-    def _user_content(self, text: str, attachments: list[Attachment]) -> list[dict]:
-        blocks: list[dict] = []
+    def _user_content(self, text: str, attachments: list[Attachment]) -> list:
+        blocks: list = []
         for a in attachments:
             if a.kind == "image":
-                blocks.append({
-                    "type": "image",
-                    "source": {"type": "base64", "media_type": a.media_type, "data": a.data_b64},
-                })
+                blocks.append(ImageBlock(media_type=a.media_type, data_b64=a.data_b64))
             else:
-                blocks.append({
-                    "type": "document",
-                    "source": {"type": "base64", "media_type": "application/pdf", "data": a.data_b64},
-                })
+                blocks.append(DocumentBlock(data_b64=a.data_b64))
         if text:
-            blocks.append({"type": "text", "text": text})
+            blocks.append(TextBlock(text=text))
         if not blocks:
-            blocks.append({"type": "text", "text": "(пустое сообщение)"})
+            blocks.append(TextBlock(text="(пустое сообщение)"))
         return blocks
 
     def _run_tool(self, name: str, tool_input: dict) -> tuple[str, bool, OperationDraft | None]:
@@ -81,38 +83,24 @@ class AgentSession:
         return f"Неизвестный инструмент: {name}", True, None
 
     def process_turn(self, text: str, attachments: list[Attachment] | None = None) -> TurnResult:
-        self.messages.append({"role": "user", "content": self._user_content(text, attachments or [])})
+        self.messages.append(Message("user", self._user_content(text, attachments or [])))
 
         for _ in range(MAX_TOOL_ITERATIONS):
-            resp = self._client.messages.create(
-                model=MODEL,
-                max_tokens=4096,
-                thinking={"type": "adaptive"},
-                system=SYSTEM,
-                tools=ALL_TOOLS,
-                messages=self.messages,
-            )
-            self.messages.append({"role": "assistant", "content": resp.content})
+            resp = self.provider.complete(
+                system=SYSTEM, tools=ALL_TOOLS, messages=self.messages, max_tokens=4096)
+            self.messages.append(Message("assistant", resp.content))
 
             if resp.stop_reason != "tool_use":
-                text_out = "\n".join(b.text for b in resp.content if b.type == "text").strip()
-                return TurnResult(reply_text=text_out or "…")
+                return TurnResult(reply_text=resp.text or "…")
 
-            tool_results = []
+            tool_results: list = []
             proposal: OperationDraft | None = None
-            for block in resp.content:
-                if block.type != "tool_use":
-                    continue
-                content, is_error, draft = self._run_tool(block.name, block.input)
+            for tu in resp.tool_uses:
+                content, is_error, draft = self._run_tool(tu.name, tu.input)
                 if draft is not None:
                     proposal = draft
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": content,
-                    "is_error": is_error,
-                })
-            self.messages.append({"role": "user", "content": tool_results})
+                tool_results.append(ToolResultBlock(tu.id, content, is_error))
+            self.messages.append(Message("user", tool_results))
 
             if proposal is not None:
                 return TurnResult(proposal=proposal)
@@ -122,8 +110,5 @@ class AgentSession:
 
     def note_confirmation(self, draft_id: str) -> None:
         """Записать в историю факт подтверждения — чтобы follow-up имел контекст."""
-        self.messages.append({
-            "role": "user",
-            "content": [{"type": "text", "text": f"[Система: пользователь подтвердил, "
-                                                 f"в 1С создан черновик {draft_id}.]"}],
-        })
+        self.messages.append(Message("user", [TextBlock(
+            f"[Система: пользователь подтвердил, в 1С создан черновик {draft_id}.]")]))
