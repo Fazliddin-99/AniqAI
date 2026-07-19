@@ -1,14 +1,11 @@
 [project]
-name = "accountant-backend"
+name = "onec-mock"
 version = "0.1.0"
-description = "Оркестратор: пайплайн ЭСФ, классификатор проводок, API очереди ревью"
+description = "Мок HTTP-сервиса 1С (/hs/copilot/v1) для dev — заменяет расширение конфигурации"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
-    "anthropic>=0.116",
-    "pydantic>=2.7",
-    "httpx>=0.27",
     "copilot-shared",
 ]
 

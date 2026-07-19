@@ -11,10 +11,29 @@
 
 | Путь | Что это |
 |------|---------|
-| `apps/backend/` | Оркестратор: пайплайн ЭСФ, классификатор (правила + LLM), API очереди ревью |
+| `apps/backend/` | Оркестратор: пайплайн ЭСФ, классификатор, **ядро агента** (`app/agent`), API |
+| `apps/bot/` | Telegram-бот приёма документов (фича 1) |
+| `apps/onec-mock/` | Мок HTTP-сервиса 1С для dev — заменяет расширение до его готовности |
 | `apps/web/` | Веб-приложение: очередь ревью, дашборд метрик |
-| `apps/bot/` | Telegram-бот (intake документов) — спринт 3 |
-| `packages/shared/` | Общие контракты: схемы ЭСФ, проводок, confidence |
+| `packages/shared/` | Общие контракты (`copilot_shared`): операция, модели API 1С |
 | `onec/` | Расширение конфигурации 1С (BSL) — разворачивается через /setup-1c-framework |
-| `data/samples/` | Синтетические примеры ЭСФ (в git) |
-| `data/real/` | Реальные выгрузки (в .gitignore, никогда в git) |
+| `data/samples/` | Синтетические примеры ЭСФ и справочников (в git) |
+| `data/real/` | Реальные выгрузки и черновики мока (в .gitignore, никогда в git) |
+
+## Фича 1 — Telegram-приём документов
+
+Дизайн: [docs/feature-01-telegram-intake.md](docs/feature-01-telegram-intake.md).
+Запуск локально (три процесса):
+
+```bash
+# 1. Мок 1С
+cd apps/onec-mock && uv run uvicorn app.main:app --port 8100
+
+# 2. Бэкенд (ядро агента + API). Нужен ключ Claude.
+cd apps/backend && ONEC_BASE_URL=http://localhost:8100 \
+  uv run uvicorn app.main:app --port 8000
+
+# 3. Бот
+cd apps/bot && BOT_TOKEN=<токен> BACKEND_URL=http://localhost:8000 \
+  BOT_WHITELIST="<telegram_user_id>:demo" uv run python -m bot.main
+```

@@ -22,3 +22,7 @@ build/
 # IDE
 .idea/
 .vscode/
+
+# Локальные lock-файлы uv аппов
+apps/*/uv.lock
+packages/*/uv.lock

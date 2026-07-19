@@ -2,11 +2,13 @@
 
 from fastapi import FastAPI, HTTPException
 
+from .agent.api import router as agent_router
 from .history import load_history
 from .models import Esf, PostingEntry, ReviewItem, ReviewStatus
 from .pipeline import process
 
 app = FastAPI(title="Accountant Copilot", version="0.1.0")
+app.include_router(agent_router)
 
 # Прототип: состояние в памяти. Этап 1 — Postgres.
 _queue: dict[str, ReviewItem] = {}

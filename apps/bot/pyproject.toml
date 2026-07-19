@@ -1,0 +1,16 @@
+[project]
+name = "copilot-bot"
+version = "0.1.0"
+description = "Telegram-бот приёма документов → ядро агента"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.13",
+    "httpx>=0.27",
+    "copilot-shared",
+]
+
+[tool.uv.sources]
+copilot-shared = { path = "../../packages/shared", editable = true }
+
+[tool.uv]
+package = false
