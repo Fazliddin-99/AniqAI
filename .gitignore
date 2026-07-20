@@ -27,3 +27,22 @@ build/
 # Локальные lock-файлы uv аппов
 apps/*/uv.lock
 packages/*/uv.lock
+
+# 1С-фреймворк: внешние клоны и локальные артефакты (не наш исходный код)
+onec/framework-repo/
+onec/mcp-servers/
+onec/INSTALL-STATUS.md
+onec/.mcp.json
+onec/.install-session.json
+# симлинки инсталлятора внутрь framework-repo/framework
+onec/capabilities
+onec/tools
+# .claude/ подпроекта — симлинки внутрь framework-repo (который игнорируется):
+# в git они превратились бы в битые ссылки. Восстанавливается install.py.
+onec/.claude/
+
+# Выгрузка ТИПОВОЙ конфигурации БП 3.0 — вендорский код, сотни тысяч файлов.
+# Версионируем только НАШЕ расширение (onec/src/cfe).
+onec/src/cf/
+# Сгенерированная документация конфигурации (справочный материал)
+onec/docs/

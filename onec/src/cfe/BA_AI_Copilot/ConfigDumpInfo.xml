@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" format="Hierarchical" version="2.20">
+	<ConfigVersions>
+		<Metadata name="Configuration.BA_AI_Copilot" id="4ee52bb4-64ea-4a33-881a-52f35f0d819c" configVersion="1e167f4160db3103cefee043c2f1cef0c74b4f83"/>
+		<Metadata name="Language.Русский" id="c39478e9-ea84-4d61-9ee4-2bbd189c6475" configVersion="f574b5633c58e7f86f86742d98908e6c999460aa"/>
+		<Metadata name="Role.BA_ОсновнаяРоль" id="0fdf002d-dc16-47ca-8294-666eaf14770a" configVersion="c084e790d6d1a3969729ce53278e26c9e82329b1"/>
+	</ConfigVersions>
+</ConfigDumpInfo>
