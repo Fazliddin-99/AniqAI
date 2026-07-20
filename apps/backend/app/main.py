@@ -5,15 +5,25 @@ from dotenv import find_dotenv, load_dotenv
 # Загрузить .env до импорта агента/клиента 1С (они читают переменные при импорте).
 load_dotenv(find_dotenv(usecwd=True))
 
-from fastapi import FastAPI, HTTPException  # noqa: E402
+import os  # noqa: E402
 
+from fastapi import FastAPI, HTTPException  # noqa: E402
+from starlette.middleware.sessions import SessionMiddleware  # noqa: E402
+
+from .admin.router import router as admin_router  # noqa: E402
 from .agent.api import router as agent_router  # noqa: E402
-from .history import load_history
-from .models import Esf, PostingEntry, ReviewItem, ReviewStatus
-from .pipeline import process
+from .db.session import init_db  # noqa: E402
+from .history import load_history  # noqa: E402
+from .models import Esf, PostingEntry, ReviewItem, ReviewStatus  # noqa: E402
+from .pipeline import process  # noqa: E402
+
+init_db()
 
 app = FastAPI(title="Accountant Copilot", version="0.1.0")
+app.add_middleware(SessionMiddleware,
+                   secret_key=os.environ.get("SESSION_SECRET", "dev-insecure-secret"))
 app.include_router(agent_router)
+app.include_router(admin_router)
 
 # Прототип: состояние в памяти. Этап 1 — Postgres.
 _queue: dict[str, ReviewItem] = {}

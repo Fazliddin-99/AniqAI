@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:center;margin-bottom:16px">
+  <h2 style="margin:0">Пользователи</h2>
+  <a class="btn" style="margin-left:auto" href="/admin/users/new">+ Пользователь</a>
+</div>
+<table>
+  <tr><th>Telegram ID</th><th>Имя</th><th>Компания</th><th>Роль</th><th>Статус</th><th></th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.telegram_user_id }}</td>
+    <td>{{ u.name }}</td>
+    <td>{{ u.company.name }}</td>
+    <td class="muted">{{ u.role }}</td>
+    <td>{% if u.active %}<span class="badge-on">активен</span>{% else %}<span class="badge-off">выкл.</span>{% endif %}</td>
+    <td>
+      <form method="post" action="/admin/users/{{ u.id }}/toggle" style="display:inline">
+        <input type="hidden" name="active" value="{{ 'false' if u.active else 'true' }}">
+        <button class="btn secondary" type="submit">{{ 'выключить' if u.active else 'включить' }}</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  {% if not users %}<tr><td colspan="6" class="muted">Пока нет пользователей.</td></tr>{% endif %}
+</table>
+{% endblock %}

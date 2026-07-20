@@ -1,26 +1,38 @@
-"""HTTP-обёртка ядра агента. Бот (apps/bot) — тонкий клиент этих эндпоинтов.
-
-Сессии диалогов живут здесь, в памяти (v1). Ключ — tenant:chat_id.
-"""
+"""HTTP-обёртка ядра агента. Бот шлёт telegram_user_id — бэкенд по БД определяет
+компанию и её подключение к 1С, отклоняет неизвестных. Сессии — в памяти (v1)."""
 
 from typing import Literal
 
 from copilot_shared import CreateOperationResponse, OperationDraft
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import onec_client
+from ..db import service
+from ..db.session import get_session
 from .core import AgentSession, Attachment
+from .onec_client import OnecClient
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 _sessions: dict[str, AgentSession] = {}
 
 
-def _session(tenant: str, chat_id: int) -> AgentSession:
-    key = f"{tenant}:{chat_id}"
+def _resolve(telegram_user_id: int) -> service.ResolvedUser:
+    db = get_session()
+    try:
+        resolved = service.resolve_user(db, telegram_user_id)
+    finally:
+        db.close()
+    if resolved is None:
+        raise HTTPException(403, "Доступ не настроен")
+    return resolved
+
+
+def _session(resolved: service.ResolvedUser, chat_id: int) -> AgentSession:
+    key = f"{resolved.company_id}:{chat_id}"
     if key not in _sessions:
-        _sessions[key] = AgentSession(tenant=tenant)
+        onec = OnecClient(resolved.onec.base_url, resolved.onec.user, resolved.onec.password)
+        _sessions[key] = AgentSession(tenant=str(resolved.company_id), onec=onec)
     return _sessions[key]
 
 
@@ -31,7 +43,7 @@ class AttachmentIn(BaseModel):
 
 
 class TurnIn(BaseModel):
-    tenant: str
+    telegram_user_id: int
     chat_id: int
     text: str = ""
     attachments: list[AttachmentIn] = []
@@ -44,7 +56,7 @@ class TurnOut(BaseModel):
 
 
 class ConfirmIn(BaseModel):
-    tenant: str
+    telegram_user_id: int
     chat_id: int
     proposal: OperationDraft
     external_id: str
@@ -52,7 +64,7 @@ class ConfirmIn(BaseModel):
 
 @router.post("/turn", response_model=TurnOut)
 def turn(body: TurnIn) -> TurnOut:
-    session = _session(body.tenant, body.chat_id)
+    session = _session(_resolve(body.telegram_user_id), body.chat_id)
     attachments = [Attachment(a.kind, a.media_type, a.data_b64) for a in body.attachments]
     result = session.process_turn(body.text, attachments)
     if result.proposal is not None:
@@ -62,7 +74,8 @@ def turn(body: TurnIn) -> TurnOut:
 
 @router.post("/confirm", response_model=CreateOperationResponse)
 def confirm(body: ConfirmIn) -> CreateOperationResponse:
+    session = _session(_resolve(body.telegram_user_id), body.chat_id)
     op = body.proposal.model_copy(update={"external_id": body.external_id})
-    resp = onec_client.create_operation(op)
-    _session(body.tenant, body.chat_id).note_confirmation(resp.draft_id)
+    resp = session.onec.create_operation(op)
+    session.note_confirmation(resp.draft_id)
     return resp

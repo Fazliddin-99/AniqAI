@@ -11,7 +11,7 @@ from typing import Literal
 from copilot_shared import OperationDraft
 from pydantic import ValidationError
 
-from . import onec_client
+from .onec_client import OnecClient
 from .prompt import SYSTEM
 from .providers import (
     DocumentBlock,
@@ -44,9 +44,10 @@ class TurnResult:
 
 @dataclass
 class AgentSession:
-    """История диалога одного чата. tenant — компания (база 1С)."""
+    """История диалога одного чата. tenant — компания (база 1С); onec — её подключение."""
 
     tenant: str
+    onec: OnecClient
     messages: list[Message] = field(default_factory=list)
     provider: LlmProvider = field(default_factory=get_provider)
 
@@ -67,11 +68,11 @@ class AgentSession:
         """Вернуть (текст результата, is_error, proposal|None)."""
         try:
             if name == "find_counterparty":
-                res = onec_client.find_counterparties(
+                res = self.onec.find_counterparties(
                     tin=tool_input.get("tin"), name=tool_input.get("name"))
                 return json.dumps([c.model_dump() for c in res], ensure_ascii=False), False, None
             if name == "find_item":
-                res = onec_client.find_items(query=tool_input.get("query", ""))
+                res = self.onec.find_items(query=tool_input.get("query", ""))
                 return json.dumps([i.model_dump() for i in res], ensure_ascii=False), False, None
             if name == "create_operation":
                 draft = OperationDraft.model_validate(tool_input)

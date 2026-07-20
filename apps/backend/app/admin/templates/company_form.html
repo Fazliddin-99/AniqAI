@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{{ "Изменить компанию" if company else "Новая компания" }}</h2>
+<form class="card" method="post"
+      action="{{ '/admin/companies/' ~ company.id if company else '/admin/companies' }}">
+  <label>Название</label>
+  <input name="name" value="{{ company.name if company else '' }}" required>
+
+  <label>Адрес базы 1С (base URL HTTP-сервиса)</label>
+  <input name="base_url" value="{{ company.onec_base_url if company else 'http://localhost:8100' }}" required>
+
+  <label>Пользователь 1С (необязательно)</label>
+  <input name="onec_user" value="{{ company.onec_user_enc and '' or '' }}">
+
+  <label>Пароль 1С {% if company %}<span class="muted">(пусто — не менять)</span>{% endif %}</label>
+  <input type="password" name="onec_password" autocomplete="new-password">
+
+  {% if company %}
+  <label style="margin-top:16px"><input type="checkbox" name="active" style="width:auto"
+     {{ 'checked' if company.active }}> активна</label>
+  {% endif %}
+
+  <p></p>
+  <button class="btn" type="submit">Сохранить</button>
+  <a class="btn secondary" href="/admin/companies">Отмена</a>
+</form>
+{% endblock %}

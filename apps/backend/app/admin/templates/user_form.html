@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Новый пользователь</h2>
+<form class="card" method="post" action="/admin/users">
+  <label>Telegram ID (число)</label>
+  <input name="telegram_user_id" type="number" required>
+  <p class="muted">Узнать: написать @userinfobot в Telegram.</p>
+
+  <label>Имя</label>
+  <input name="name">
+
+  <label>Компания</label>
+  <select name="company_id" required>
+    {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+  </select>
+
+  <label>Роль</label>
+  <select name="role">
+    <option value="accountant">бухгалтер</option>
+    <option value="admin">админ</option>
+  </select>
+
+  <p></p>
+  <button class="btn" type="submit">Добавить</button>
+  <a class="btn secondary" href="/admin/users">Отмена</a>
+</form>
+{% endblock %}

@@ -1,9 +1,8 @@
 """Telegram-бот приёма документов.
 
-Тонкий слой: whitelist → скачать вложения → буфер → backend /agent/turn → карточка.
-Запуск: BOT_TOKEN=... BACKEND_URL=http://localhost:8000 uv run python -m bot.main
-
-BOT_WHITELIST="123456:demo,222333:acme" — telegram_user_id:tenant (база 1С).
+Тонкий слой: скачать вложения → буфер → backend /agent/turn → карточка.
+Доступ (кто к какой компании) решает бэкенд по БД; бот шлёт только telegram_user_id.
+Запуск: uv run python -m bot.main  (переменные — из корневого .env)
 """
 
 import base64
@@ -16,44 +15,28 @@ from dotenv import find_dotenv, load_dotenv
 load_dotenv(find_dotenv(usecwd=True))
 
 import httpx  # noqa: E402
-from aiogram import Bot, Dispatcher, F
-from aiogram.filters import CommandStart
-from aiogram.types import (
+from aiogram import Bot, Dispatcher, F  # noqa: E402
+from aiogram.filters import CommandStart  # noqa: E402
+from aiogram.types import (  # noqa: E402
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
 )
-from copilot_shared import OperationDraft
+from copilot_shared import OperationDraft  # noqa: E402
 
-from .buffer import Attachment, ChatBuffer
-from .cards import render_card
+from .buffer import Attachment, ChatBuffer  # noqa: E402
+from .cards import render_card  # noqa: E402
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
-
-
-def _parse_whitelist() -> dict[int, str]:
-    out: dict[int, str] = {}
-    for pair in os.environ.get("BOT_WHITELIST", "").split(","):
-        pair = pair.strip()
-        if ":" in pair:
-            uid, tenant = pair.split(":", 1)
-            out[int(uid)] = tenant
-    return out
-
-
-WHITELIST = _parse_whitelist()
+_ACCESS_DENIED = "Доступ не настроен. Обратитесь к администратору."
 
 bot = Bot(token=os.environ["BOT_TOKEN"])
 dp = Dispatcher()
 _http = httpx.AsyncClient(base_url=BACKEND_URL, timeout=120.0)
 
-# Активные предложения операций по чату (ждут нажатия кнопки).
-_proposals: dict[int, OperationDraft] = {}
-
-
-def _tenant(user_id: int) -> str | None:
-    return WHITELIST.get(user_id)
+_proposals: dict[int, OperationDraft] = {}   # активные предложения по чату
+_chat_user: dict[int, int] = {}              # chat_id -> telegram_user_id
 
 
 async def _download(file_id: str) -> str:
@@ -62,16 +45,19 @@ async def _download(file_id: str) -> str:
 
 
 async def _flush(chat_id: int, text: str, attachments: list[Attachment]) -> None:
-    tenant = _chat_tenant.get(chat_id)
-    if tenant is None:
+    uid = _chat_user.get(chat_id)
+    if uid is None:
         return
     payload = {
-        "tenant": tenant,
+        "telegram_user_id": uid,
         "chat_id": chat_id,
         "text": text,
         "attachments": [a.__dict__ for a in attachments],
     }
     r = await _http.post("/agent/turn", json=payload)
+    if r.status_code == 403:
+        await bot.send_message(chat_id, _ACCESS_DENIED)
+        return
     r.raise_for_status()
     data = r.json()
 
@@ -89,14 +75,10 @@ async def _flush(chat_id: int, text: str, attachments: list[Attachment]) -> None
 
 
 _buffer = ChatBuffer(on_flush=_flush)
-_chat_tenant: dict[int, str] = {}
 
 
 @dp.message(CommandStart())
 async def on_start(msg: Message) -> None:
-    if _tenant(msg.from_user.id) is None:
-        await msg.answer("Доступ не настроен. Обратитесь к администратору.")
-        return
     await msg.answer("Пришлите фото или файл документа — заведу операцию в 1С. "
                      "Умею: поступление, реализацию, чек/подотчёт, платёжное поручение.")
 
@@ -109,15 +91,11 @@ async def on_voice(msg: Message) -> None:
 
 @dp.message()
 async def on_message(msg: Message) -> None:
-    tenant = _tenant(msg.from_user.id)
-    if tenant is None:
-        await msg.answer("Доступ не настроен. Обратитесь к администратору.")
-        return
-    _chat_tenant[msg.chat.id] = tenant
+    _chat_user[msg.chat.id] = msg.from_user.id
 
     if msg.photo:
-        att = Attachment("image", "image/jpeg", await _download(msg.photo[-1].file_id))
-        _buffer.add_attachment(msg.chat.id, att)
+        _buffer.add_attachment(
+            msg.chat.id, Attachment("image", "image/jpeg", await _download(msg.photo[-1].file_id)))
     if msg.document:
         mime = msg.document.mime_type or ""
         if mime == "application/pdf":
@@ -141,12 +119,17 @@ async def on_confirm(cb: CallbackQuery) -> None:
         await cb.answer("Нет активной операции")
         return
     payload = {
-        "tenant": _chat_tenant.get(chat_id, "demo"),
+        "telegram_user_id": cb.from_user.id,
         "chat_id": chat_id,
         "proposal": op.model_dump(),
         "external_id": f"tg-{chat_id}-{uuid.uuid4().hex[:8]}",
     }
     r = await _http.post("/agent/confirm", json=payload)
+    if r.status_code == 403:
+        await cb.message.edit_reply_markup(reply_markup=None)
+        await bot.send_message(chat_id, _ACCESS_DENIED)
+        await cb.answer()
+        return
     r.raise_for_status()
     resp = r.json()
     await cb.message.edit_reply_markup(reply_markup=None)
