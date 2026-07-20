@@ -34,6 +34,7 @@ onec/mcp-servers/
 onec/INSTALL-STATUS.md
 onec/.mcp.json
 onec/.install-session.json
+onec/mcp-server.log
 # симлинки инсталлятора внутрь framework-repo/framework
 onec/capabilities
 onec/tools

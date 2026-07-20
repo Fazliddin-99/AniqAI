@@ -74,6 +74,13 @@ class AgentSession:
             if name == "find_item":
                 res = self.onec.find_items(query=tool_input.get("query", ""))
                 return json.dumps([i.model_dump() for i in res], ensure_ascii=False), False, None
+            if name == "find_employee":
+                res = self.onec.find_employees(query=tool_input.get("query", ""))
+                if not res:
+                    # Явная подсказка: физлиц создавать нельзя, обходного пути нет (ТЗ §5.3.1).
+                    return ("Сотрудник не найден. Создавать физлиц нельзя — уточни ФИО "
+                            "у пользователя или сообщи, что такого подотчётника нет в базе."), False, None
+                return json.dumps([e.model_dump() for e in res], ensure_ascii=False), False, None
             if name == "create_operation":
                 draft = OperationDraft.model_validate(tool_input)
                 return "Операция собрана и показана пользователю на подтверждение.", False, draft

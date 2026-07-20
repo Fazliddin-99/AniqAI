@@ -32,6 +32,23 @@ FIND_ITEM = {
     },
 }
 
+FIND_EMPLOYEE = {
+    "name": "find_employee",
+    "description": (
+        "Найти сотрудника (физлицо) в 1С по части ФИО. Нужен для чека подотчётного лица: "
+        "подотчётника нельзя угадать или создать — его обязательно надо найти в базе. "
+        "Если пользователь не назвал ФИО — сначала спроси, потом ищи. "
+        "Если поиск ничего не вернул, честно скажи об этом и не создавай операцию."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Часть ФИО подотчётного лица"},
+        },
+        "required": ["query"],
+    },
+}
+
 CREATE_OPERATION = {
     "name": "create_operation",
     "description": (
@@ -43,4 +60,4 @@ CREATE_OPERATION = {
     "input_schema": OperationDraft.model_json_schema(),
 }
 
-ALL_TOOLS = [FIND_COUNTERPARTY, FIND_ITEM, CREATE_OPERATION]
+ALL_TOOLS = [FIND_COUNTERPARTY, FIND_ITEM, FIND_EMPLOYEE, CREATE_OPERATION]

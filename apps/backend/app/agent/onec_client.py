@@ -4,6 +4,7 @@ import httpx
 from copilot_shared import (
     Counterparty,
     CreateOperationResponse,
+    Employee,
     ItemRef,
     OperationDraft,
 )
@@ -30,6 +31,12 @@ class OnecClient:
             r = c.get("/hs/copilot/v1/items", params={"query": query})
             r.raise_for_status()
             return [ItemRef.model_validate(x) for x in r.json()]
+
+    def find_employees(self, query: str) -> list[Employee]:
+        with self._client() as c:
+            r = c.get("/hs/copilot/v1/employees", params={"query": query})
+            r.raise_for_status()
+            return [Employee.model_validate(x) for x in r.json()]
 
     def create_operation(self, op: OperationDraft) -> CreateOperationResponse:
         headers = {"Idempotency-Key": op.external_id} if op.external_id else {}
