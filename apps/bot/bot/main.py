@@ -54,24 +54,29 @@ async def _flush(chat_id: int, text: str, attachments: list[Attachment]) -> None
         "text": text,
         "attachments": [a.__dict__ for a in attachments],
     }
-    r = await _http.post("/agent/turn", json=payload)
-    if r.status_code == 403:
-        await bot.send_message(chat_id, _ACCESS_DENIED)
-        return
-    r.raise_for_status()
-    data = r.json()
+    try:
+        r = await _http.post("/agent/turn", json=payload)
+        if r.status_code == 403:
+            await bot.send_message(chat_id, _ACCESS_DENIED)
+            return
+        r.raise_for_status()
+        data = r.json()
 
-    if data["type"] == "proposal":
-        op = OperationDraft.model_validate(data["proposal"])
-        _proposals[chat_id] = op
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="✅ Отправить в 1С", callback_data="confirm"),
-            InlineKeyboardButton(text="✏️ Исправить", callback_data="edit"),
-            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"),
-        ]])
-        await bot.send_message(chat_id, render_card(op), reply_markup=kb, parse_mode="Markdown")
-    else:
-        await bot.send_message(chat_id, data.get("reply_text") or "…")
+        if data["type"] == "proposal":
+            op = OperationDraft.model_validate(data["proposal"])
+            _proposals[chat_id] = op
+            kb = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="✅ Отправить в 1С", callback_data="confirm"),
+                InlineKeyboardButton(text="✏️ Исправить", callback_data="edit"),
+                InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"),
+            ]])
+            await bot.send_message(chat_id, render_card(op), reply_markup=kb)
+        else:
+            await bot.send_message(chat_id, data.get("reply_text") or "…")
+    except Exception as e:  # noqa: BLE001 — не оставлять «висящее» исключение в задаче буфера
+        print(f"[flush error] chat={chat_id}: {e!r}")
+        await bot.send_message(chat_id, "Не удалось обработать сообщение. Попробуйте ещё раз "
+                                        "или пришлите документ заново.")
 
 
 _buffer = ChatBuffer(on_flush=_flush)

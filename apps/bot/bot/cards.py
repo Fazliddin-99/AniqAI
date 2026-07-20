@@ -23,5 +23,5 @@ def render_card(op: OperationDraft) -> str:
                  + (f" + НДС {op.totals.vat_sum:,.0f}" if op.totals.vat_sum else ""))
     if op.user_comment:
         lines.append(f"Комментарий: {op.user_comment}")
-    lines.append(f"_{op.explanation}_")
+    lines.append(op.explanation)
     return "\n".join(lines)
