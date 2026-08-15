@@ -2,6 +2,7 @@
 компанию и её подключение к 1С, отклоняет неизвестных. Сессии — в памяти (v1)."""
 
 import base64
+import os
 from typing import Literal
 
 import httpx
@@ -23,6 +24,15 @@ def _resolve(telegram_user_id: int) -> service.ResolvedUser:
     db = get_session()
     try:
         resolved = service.resolve_user(db, telegram_user_id)
+        # Демо-режим: незнакомый пользователь автоматически заводится в демо-компанию.
+        # На проде флаг обязан быть выключен — доступ только по whitelist'у админки.
+        if resolved is None and os.environ.get("DEMO_AUTO_REGISTER") == "1":
+            company_id = int(os.environ.get("DEMO_COMPANY_ID", "1"))
+            if service.get_company(db, company_id) is not None:
+                service.create_user(db, telegram_user_id, company_id,
+                                    name=f"Демо-пользователь {telegram_user_id}",
+                                    role="demo")
+                resolved = service.resolve_user(db, telegram_user_id)
     finally:
         db.close()
     if resolved is None:
