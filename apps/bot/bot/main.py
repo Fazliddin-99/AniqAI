@@ -39,18 +39,22 @@ dp = Dispatcher()
 # 300с: аналитический ход (несколько отчётов 1С + графики) не укладывается в 120.
 _http = httpx.AsyncClient(base_url=BACKEND_URL, timeout=300.0)
 
-_proposals: dict[int, OperationDraft] = {}   # активные предложения по чату
+# Предложение привязано к конкретному сообщению-карточке: кнопки старой карточки
+# не должны действовать на новую версию операции (инцидент «Нет активной операции»
+# после исправления даты, 15.08.2026).
+_proposals: dict[tuple[int, int], OperationDraft] = {}  # (chat_id, msg_id) -> черновик
+_last_card: dict[int, int] = {}              # chat_id -> msg_id последней карточки
 _chat_user: dict[int, int] = {}              # chat_id -> telegram_user_id
 _created: dict[int, str] = {}                # chat_id -> draft_id последнего черновика
 _chat_locks: dict[int, asyncio.Lock] = {}    # ходы одного чата — строго по очереди
 
 
-async def _send_html(chat_id: int, text: str, **kwargs) -> None:
+async def _send_html(chat_id: int, text: str, **kwargs) -> Message:
     """Отправить текст агента: Markdown → HTML, при ошибке разметки — как есть."""
     try:
-        await bot.send_message(chat_id, md_to_html(text), parse_mode="HTML", **kwargs)
+        return await bot.send_message(chat_id, md_to_html(text), parse_mode="HTML", **kwargs)
     except Exception:  # noqa: BLE001 — разметка не должна терять сообщение
-        await bot.send_message(chat_id, text, **kwargs)
+        return await bot.send_message(chat_id, text, **kwargs)
 
 
 async def _download(file_id: str) -> str:
@@ -85,13 +89,23 @@ async def _flush_locked(chat_id: int, text: str, attachments: list[Attachment]) 
 
         if data["type"] == "proposal":
             op = OperationDraft.model_validate(data["proposal"])
-            _proposals[chat_id] = op
             kb = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="✅ Отправить в 1С", callback_data="confirm"),
                 InlineKeyboardButton(text="✏️ Исправить", callback_data="edit"),
                 InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"),
             ]])
-            await _send_html(chat_id, render_card(op), reply_markup=kb)
+            sent = await _send_html(chat_id, render_card(op), reply_markup=kb)
+            # Новая карточка замещает старую: у прежней отбираем кнопки, чтобы
+            # нельзя было отправить устаревшую версию операции.
+            prev = _last_card.pop(chat_id, None)
+            if prev is not None:
+                _proposals.pop((chat_id, prev), None)
+                try:
+                    await bot.edit_message_reply_markup(chat_id, prev, reply_markup=None)
+                except Exception:  # noqa: BLE001 — карточка могла быть уже без кнопок
+                    pass
+            _proposals[(chat_id, sent.message_id)] = op
+            _last_card[chat_id] = sent.message_id
         else:
             await _send_html(chat_id, data.get("reply_text") or "…")
             # Графики аналитики — фотографиями следом за текстом.
@@ -144,10 +158,11 @@ async def on_message(msg: Message) -> None:
 @dp.callback_query(F.data == "confirm")
 async def on_confirm(cb: CallbackQuery) -> None:
     chat_id = cb.message.chat.id
-    op = _proposals.pop(chat_id, None)
+    op = _proposals.pop((chat_id, cb.message.message_id), None)
     if op is None:
-        await cb.answer("Нет активной операции")
+        await cb.answer("Эта карточка устарела — используйте последнюю", show_alert=True)
         return
+    _last_card.pop(chat_id, None)
     payload = {
         "telegram_user_id": cb.from_user.id,
         "chat_id": chat_id,
@@ -221,7 +236,10 @@ async def on_edit(cb: CallbackQuery) -> None:
 
 @dp.callback_query(F.data == "cancel")
 async def on_cancel(cb: CallbackQuery) -> None:
-    _proposals.pop(cb.message.chat.id, None)
+    chat_id = cb.message.chat.id
+    _proposals.pop((chat_id, cb.message.message_id), None)
+    if _last_card.get(chat_id) == cb.message.message_id:
+        _last_card.pop(chat_id, None)
     await cb.message.edit_reply_markup(reply_markup=None)
     await cb.answer("Отменено")
 
