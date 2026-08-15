@@ -65,7 +65,27 @@
 		</Properties>
 		<ChildObjects>
 			<Language>Русский</Language>
+			<Role>BA_КопилотAPI</Role>
 			<Role>BA_ОсновнаяРоль</Role>
+					<CommonModule>BA_КопилотАвансовыйОтчет</CommonModule>
+			<CommonModule>BA_КопилотГТД</CommonModule>
+			<CommonModule>BA_КопилотДиспетчер</CommonModule>
+			<CommonModule>BA_КопилотЖурнал</CommonModule>
+			<CommonModule>BA_КопилотИдемпотентность</CommonModule>
+			<CommonModule>BA_КопилотКонтракт</CommonModule>
+			<CommonModule>BA_КопилотНастройки</CommonModule>
+			<CommonModule>BA_КопилотОтвет</CommonModule>
+			<CommonModule>BA_КопилотОтчеты</CommonModule>
+			<CommonModule>BA_КопилотСправочники</CommonModule>
+			<CommonModule>BA_КопилотСчета</CommonModule>
+			<HTTPService>BA_Copilot</HTTPService>
+			<Constant>BA_КопилотДоговорСТаможнейПоУмолчанию</Constant>
+			<Constant>BA_КопилотЗапрещеноСоздаватьКонтрагентов</Constant>
+			<Constant>BA_КопилотЗапрещеноСоздаватьНоменклатуру</Constant>
+			<Constant>BA_КопилотОрганизацияПоУмолчанию</Constant>
+			<Constant>BA_КопилотСкладПоУмолчанию</Constant>
+			<Constant>BA_КопилотСтатьяЗатратНаПриобретениеПоУмолчанию</Constant>
+					<InformationRegister>BA_КопилотИдемпотентность</InformationRegister>
 		</ChildObjects>
 	</Configuration>
 </MetaDataObject>

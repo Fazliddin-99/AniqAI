@@ -34,12 +34,21 @@ def render_card(op: OperationDraft) -> str:
     if op.doc_number or op.doc_date:
         lines.append(f"Документ: № {op.doc_number or '—'} от {op.doc_date or '—'}")
 
+    new_items = 0
     for it in op.items:
         suffix = " (услуга)" if it.kind.value == "service" else ""
+        # Пустой item_ref_1c = 1С создаст новую номенклатуру — бухгалтер должен
+        # увидеть это ДО подтверждения (создание согласовано только через карточку).
+        if not it.item_ref_1c:
+            suffix += " 🆕"
+            new_items += 1
         lines.append(
             f"• {it.name}{suffix} — {it.qty:g} × {it.price:,.0f} = "
             f"{_money(it.sum, op.currency)}"
         )
+    if new_items:
+        lines.append(f"🆕 Новых номенклатур будет создано: {new_items} "
+                     "(отмечены выше). Не согласны — нажмите «Исправить».")
 
     total = _money(op.totals.sum, op.currency)
     lines.append(f"Итого: {total}"
@@ -70,6 +79,8 @@ def _customs_lines(op: OperationDraft) -> list[str]:
     ]
     if len(cd.sections) > 1:
         lines.append(f"Разделов ГТД: {len(cd.sections)}")
-    lines.append("⚠️ Будет создано ДВА документа: поступление от поставщика и ГТД на его "
-                 "основании. Если поступление уже заведено вручную — получится дубль.")
+    lines.append("ℹ️ Создаётся пара: поступление от поставщика + ГТД на его основании. "
+                 "Непроведённое поступление с тем же номером и датой инвойса 1С "
+                 "переиспользует — дубля не будет. Уже проведённое — не подхватится: "
+                 "появится второе поступление, сверьте вручную.")
     return lines

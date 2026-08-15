@@ -1,6 +1,6 @@
 # Реальные данные клиентов — никогда в git
 data/real/
-
+.claude
 # Секреты
 .env
 .env.*
@@ -38,6 +38,9 @@ onec/mcp-server.log
 # симлинки инсталлятора внутрь framework-repo/framework
 onec/capabilities
 onec/tools
+onec/tasks
+onec/Claude.md
+onec/
 # .claude/ подпроекта — симлинки внутрь framework-repo (который игнорируется):
 # в git они превратились бы в битые ссылки. Восстанавливается install.py.
 onec/.claude/
@@ -47,3 +50,7 @@ onec/.claude/
 onec/src/cf/
 # Сгенерированная документация конфигурации (справочный материал)
 onec/docs/
+# Одноразовая файловая база для прайминга базовой линии хешей (technical-design §11.1).
+# Уже покрыта общим шаблоном `build/` выше - продублировано явно, чтобы назначение
+# каталога было видно из .gitignore.
+onec/build/ib-prime/

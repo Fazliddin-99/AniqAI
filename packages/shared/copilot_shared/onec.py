@@ -32,6 +32,13 @@ class OperationStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class Warehouse(BaseModel):
+    """Склад. Только для чтения — выбор при нескольких складах в базе (§4.6)."""
+
+    ref_1c: str
+    name: str
+
+
 class RelatedDoc(BaseModel):
     """Сопутствующий документ пары (ТЗ §5.6). Пока это только поступление под ГТД."""
 

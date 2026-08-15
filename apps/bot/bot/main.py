@@ -5,6 +5,7 @@
 Запуск: uv run python -m bot.main  (переменные — из корневого .env)
 """
 
+import asyncio
 import base64
 import os
 import uuid
@@ -18,6 +19,7 @@ import httpx  # noqa: E402
 from aiogram import Bot, Dispatcher, F  # noqa: E402
 from aiogram.filters import CommandStart  # noqa: E402
 from aiogram.types import (  # noqa: E402
+    BufferedInputFile,
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -27,16 +29,28 @@ from copilot_shared import OperationDraft  # noqa: E402
 
 from .buffer import Attachment, ChatBuffer  # noqa: E402
 from .cards import render_card  # noqa: E402
+from .format import md_to_html  # noqa: E402
 
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 _ACCESS_DENIED = "Доступ не настроен. Обратитесь к администратору."
 
 bot = Bot(token=os.environ["BOT_TOKEN"])
 dp = Dispatcher()
-_http = httpx.AsyncClient(base_url=BACKEND_URL, timeout=120.0)
+# 300с: аналитический ход (несколько отчётов 1С + графики) не укладывается в 120.
+_http = httpx.AsyncClient(base_url=BACKEND_URL, timeout=300.0)
 
 _proposals: dict[int, OperationDraft] = {}   # активные предложения по чату
 _chat_user: dict[int, int] = {}              # chat_id -> telegram_user_id
+_created: dict[int, str] = {}                # chat_id -> draft_id последнего черновика
+_chat_locks: dict[int, asyncio.Lock] = {}    # ходы одного чата — строго по очереди
+
+
+async def _send_html(chat_id: int, text: str, **kwargs) -> None:
+    """Отправить текст агента: Markdown → HTML, при ошибке разметки — как есть."""
+    try:
+        await bot.send_message(chat_id, md_to_html(text), parse_mode="HTML", **kwargs)
+    except Exception:  # noqa: BLE001 — разметка не должна терять сообщение
+        await bot.send_message(chat_id, text, **kwargs)
 
 
 async def _download(file_id: str) -> str:
@@ -45,6 +59,13 @@ async def _download(file_id: str) -> str:
 
 
 async def _flush(chat_id: int, text: str, attachments: list[Attachment]) -> None:
+    # Пока агент обрабатывает предыдущий ход, следующий ждёт: параллельные ходы
+    # одного чата ломали историю сессии на бэкенде (инцидент 15.08.2026).
+    async with _chat_locks.setdefault(chat_id, asyncio.Lock()):
+        await _flush_locked(chat_id, text, attachments)
+
+
+async def _flush_locked(chat_id: int, text: str, attachments: list[Attachment]) -> None:
     uid = _chat_user.get(chat_id)
     if uid is None:
         return
@@ -70,9 +91,13 @@ async def _flush(chat_id: int, text: str, attachments: list[Attachment]) -> None
                 InlineKeyboardButton(text="✏️ Исправить", callback_data="edit"),
                 InlineKeyboardButton(text="❌ Отмена", callback_data="cancel"),
             ]])
-            await bot.send_message(chat_id, render_card(op), reply_markup=kb)
+            await _send_html(chat_id, render_card(op), reply_markup=kb)
         else:
-            await bot.send_message(chat_id, data.get("reply_text") or "…")
+            await _send_html(chat_id, data.get("reply_text") or "…")
+            # Графики аналитики — фотографиями следом за текстом.
+            for i, img_b64 in enumerate(data.get("images") or []):
+                await bot.send_photo(chat_id, BufferedInputFile(
+                    base64.b64decode(img_b64), filename=f"chart{i + 1}.png"))
     except Exception as e:  # noqa: BLE001 — не оставлять «висящее» исключение в задаче буфера
         print(f"[flush error] chat={chat_id}: {e!r}")
         await bot.send_message(chat_id, "Не удалось обработать сообщение. Попробуйте ещё раз "
@@ -139,9 +164,52 @@ async def on_confirm(cb: CallbackQuery) -> None:
     resp = r.json()
     await cb.message.edit_reply_markup(reply_markup=None)
     hit = " (уже был создан ранее)" if resp.get("idempotent_hit") else ""
+    # Проведение — только по явной кнопке (решение владельца, ТЗ §6.1).
+    _created[chat_id] = resp["draft_id"]
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="📮 Провести в 1С", callback_data="post"),
+        InlineKeyboardButton(text="Оставить черновиком", callback_data="keep_draft"),
+    ]])
     await bot.send_message(chat_id, f"✅ В 1С создан черновик «{resp['doc_type_1c']}» "
-                                    f"№ {resp['doc_number']}{hit}. Проверьте и проведите в базе.")
+                                    f"№ {resp['doc_number']}{hit}.", reply_markup=kb)
     await cb.answer()
+
+
+@dp.callback_query(F.data == "post")
+async def on_post(cb: CallbackQuery) -> None:
+    chat_id = cb.message.chat.id
+    draft_id = _created.pop(chat_id, None)
+    if draft_id is None:
+        await cb.answer("Нет документа для проведения")
+        return
+    payload = {"telegram_user_id": cb.from_user.id, "chat_id": chat_id, "draft_id": draft_id}
+    try:
+        r = await _http.post("/agent/post", json=payload)
+        if r.status_code in (404, 422):
+            # 1С отказала с человекочитаемой причиной — показать её пользователю.
+            reason = r.json().get("detail", "причина не указана")
+            _created[chat_id] = draft_id  # вернуть — можно исправить в 1С и повторить
+            await bot.send_message(chat_id, f"⚠️ 1С не провела документ: {reason}\n"
+                                            "Документ остался черновиком.")
+            await cb.answer()
+            return
+        r.raise_for_status()
+        resp = r.json()
+        await cb.message.edit_reply_markup(reply_markup=None)
+        await bot.send_message(chat_id, f"📮 Документ № {resp['doc_number']} проведён в 1С.")
+    except Exception as e:  # noqa: BLE001 — ошибка проведения не должна ронять хендлер
+        print(f"[post error] chat={chat_id}: {e!r}")
+        _created[chat_id] = draft_id  # вернуть — пользователь сможет повторить
+        await bot.send_message(chat_id, "Не удалось провести документ — он остался черновиком. "
+                                        "Проверьте его в 1С или попробуйте ещё раз.")
+    await cb.answer()
+
+
+@dp.callback_query(F.data == "keep_draft")
+async def on_keep_draft(cb: CallbackQuery) -> None:
+    _created.pop(cb.message.chat.id, None)
+    await cb.message.edit_reply_markup(reply_markup=None)
+    await cb.answer("Останется черновиком")
 
 
 @dp.callback_query(F.data == "edit")

@@ -119,6 +119,13 @@ class OperationDraft(BaseModel):
     exchange_rate: float | None = Field(
         default=None, description="Курс к суму на doc_date; null — 1С возьмёт свой"
     )
+    warehouse_ref: str | None = Field(
+        default=None,
+        description=(
+            "GUID склада из find_warehouse. Заполнять, только если складов несколько "
+            "и пользователь выбрал; null — 1С подставит единственный склад базы сама"
+        ),
+    )
 
     # Блоки, специфичные для типа операции. Для остальных типов — None.
     expense_details: ExpenseDetails | None = None

@@ -16,10 +16,20 @@ dependencies = [
     "python-multipart>=0.0.9",
     "itsdangerous>=2.1",
     "copilot-shared",
+    "matplotlib>=3.9",
 ]
 
 [tool.uv.sources]
 copilot-shared = { path = "../../packages/shared", editable = true }
 
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

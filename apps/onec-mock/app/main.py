@@ -17,14 +17,18 @@ from copilot_shared import (
     OperationStatus,
     OperationType,
     RelatedDoc,
+    Warehouse,
 )
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Response
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DRAFTS_DIR = REPO_ROOT / "data" / "real" / "onec_drafts"
 DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
 
+from .reports import router as reports_router  # noqa: E402
+
 app = FastAPI(title="1С Copilot API (мок)", version="0.1.0")
+app.include_router(reports_router)
 
 # Тип операции → имя документа 1С (для наглядности в ответе).
 DOC_TYPE = {
@@ -46,6 +50,11 @@ _ITEMS = [
     ItemRef(ref_1c="IT-001", name="Цемент М400, мешок 50 кг", ikpu="06810001001000000"),
     ItemRef(ref_1c="IT-002", name="Смартфон Samsung Galaxy A15", ikpu="08517120001000000"),
     ItemRef(ref_1c="IT-003", name="Ноутбук HP 250 G9", ikpu="08471030001000000"),
+]
+# Два склада — чтобы тестировать ветку «складов несколько, агент спрашивает» (§4.6).
+_WAREHOUSES = [
+    Warehouse(ref_1c="WH-001", name="Основной склад"),
+    Warehouse(ref_1c="WH-002", name="Склад №2 (розница)"),
 ]
 _EMPLOYEES = [
     Employee(ref_1c="EMP-001", name="Каримов Азиз Рустамович", position="Менеджер по снабжению"),
@@ -73,6 +82,14 @@ def find_items(query: str = ""):
     return [i for i in _ITEMS if q in i.name.lower() or (i.ikpu and q in i.ikpu)]
 
 
+@app.get("/hs/copilot/v1/warehouses", response_model=list[Warehouse])
+def find_warehouses(query: str = ""):
+    q = query.lower().strip()
+    if not q:
+        return _WAREHOUSES
+    return [w for w in _WAREHOUSES if q in w.name.lower()]
+
+
 @app.get("/hs/copilot/v1/employees", response_model=list[Employee])
 def find_employees(query: str = ""):
     q = query.lower().strip()
@@ -84,6 +101,7 @@ def find_employees(query: str = ""):
 @app.post("/hs/copilot/v1/operations", response_model=CreateOperationResponse)
 def create_operation(
     op: OperationDraft,
+    response: Response,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     key = idempotency_key or op.external_id
@@ -97,6 +115,8 @@ def create_operation(
         resp.idempotent_hit = True
         return resp
 
+    # Как реальный сервис (ТЗ §5.6): 201 — создан, 200 — идемпотентный повтор.
+    response.status_code = 201
     draft_id = f"DRAFT-{abs(hash(key)) % 1_000_000:06d}"
     related: list[RelatedDoc] = []
     if op.operation_type is OperationType.CUSTOMS_DECLARATION:
@@ -123,6 +143,24 @@ def create_operation(
         encoding="utf-8",
     )
     return resp
+
+
+@app.post("/hs/copilot/v1/operations/{draft_id}/post", response_model=CreateOperationResponse)
+def post_operation(draft_id: str):
+    """Проведение по подтверждению пользователя (ТЗ §6.1). Идемпотентно."""
+    for path in DRAFTS_DIR.glob("*.json"):
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        resp = CreateOperationResponse.model_validate(saved["response"])
+        if resp.draft_id != draft_id:
+            continue
+        resp.status = OperationStatus.POSTED
+        # Пара ГТД проводится целиком (поступление -> ГТД, одна транзакция в 1С).
+        for rel in resp.related_docs:
+            rel.status = OperationStatus.POSTED
+        saved["response"] = resp.model_dump()
+        path.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
+        return resp
+    raise HTTPException(404, "черновик не найден или создан не сервисом")
 
 
 @app.get("/hs/copilot/v1/operations/{draft_id}", response_model=CreateOperationResponse)

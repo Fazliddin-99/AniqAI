@@ -1,8 +1,10 @@
 """HTTP-обёртка ядра агента. Бот шлёт telegram_user_id — бэкенд по БД определяет
 компанию и её подключение к 1С, отклоняет неизвестных. Сессии — в памяти (v1)."""
 
+import base64
 from typing import Literal
 
+import httpx
 from copilot_shared import CreateOperationResponse, OperationDraft
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -53,6 +55,7 @@ class TurnOut(BaseModel):
     type: Literal["reply", "proposal"]
     reply_text: str | None = None
     proposal: OperationDraft | None = None
+    images: list[str] = []  # PNG-графики аналитики, base64
 
 
 class ConfirmIn(BaseModel):
@@ -69,7 +72,8 @@ def turn(body: TurnIn) -> TurnOut:
     result = session.process_turn(body.text, attachments)
     if result.proposal is not None:
         return TurnOut(type="proposal", proposal=result.proposal)
-    return TurnOut(type="reply", reply_text=result.reply_text)
+    return TurnOut(type="reply", reply_text=result.reply_text,
+                   images=[base64.b64encode(i).decode() for i in result.images])
 
 
 @router.post("/confirm", response_model=CreateOperationResponse)
@@ -78,4 +82,29 @@ def confirm(body: ConfirmIn) -> CreateOperationResponse:
     op = body.proposal.model_copy(update={"external_id": body.external_id})
     resp = session.onec.create_operation(op)
     session.note_confirmation(resp.draft_id)
+    return resp
+
+
+class PostIn(BaseModel):
+    telegram_user_id: int
+    chat_id: int
+    draft_id: str
+
+
+@router.post("/post", response_model=CreateOperationResponse)
+def post_document(body: PostIn) -> CreateOperationResponse:
+    """Провести созданный черновик (ТЗ §6.1). Вызывается ботом только после
+    явного нажатия пользователем кнопки «Провести»."""
+    session = _session(_resolve(body.telegram_user_id), body.chat_id)
+    try:
+        resp = session.onec.post_operation(body.draft_id)
+    except httpx.HTTPStatusError as e:
+        # Текст отказа 1С («не заполнен счёт учёта…») должен дойти до пользователя.
+        detail = "Не удалось провести документ."
+        try:
+            detail = e.response.json()["error"]["message"]
+        except Exception:  # noqa: BLE001 — тело может быть не по формату §6
+            pass
+        raise HTTPException(e.response.status_code, detail) from e
+    session.note_posting(body.draft_id)
     return resp
