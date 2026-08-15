@@ -9,10 +9,29 @@ Windows Server. 1С может жить на этой же машине или �
 | Что | Зачем |
 |---|---|
 | Windows Server 2019+ (или Windows 10/11 Pro) | ОС |
-| Python 3.12+ | рантайм |
-| [uv](https://docs.astral.sh/uv/) (`winget install astral-sh.uv`) | зависимости и запуск |
+| [uv](https://docs.astral.sh/uv/) | зависимости и запуск (Python 3.12 скачает сам) |
 | Git | доставка кода |
-| [NSSM](https://nssm.cc/download) (`winget install nssm`) | запуск бота и backend как Windows-служб |
+| [NSSM](https://nssm.cc/download) | запуск бота и backend как Windows-служб |
+
+Установка инструментов. На Windows Server `winget` обычно отсутствует —
+ставим напрямую (PowerShell от администратора):
+
+```powershell
+# uv (после установки перезапустить PowerShell — обновится PATH)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# NSSM
+Invoke-WebRequest https://nssm.cc/release/nssm-2.24.zip -OutFile $env:TEMP\nssm.zip
+Expand-Archive $env:TEMP\nssm.zip -DestinationPath C:\tools\
+copy C:\tools\nssm-2.24\win64\nssm.exe C:\Windows\System32\
+
+# Git (если не установлен) — https://git-scm.com/download/win, либо:
+Invoke-WebRequest https://github.com/git-for-windows/git/releases/latest/download/Git-64-bit.exe -OutFile $env:TEMP\git.exe 2>$null
+# (если прямая ссылка не сработала — скачать установщик с сайта вручную)
+& $env:TEMP\git.exe /VERYSILENT /NORESTART
+```
+
+Отдельная установка Python не нужна: `uv sync` сам скачает Python 3.12.
 | Исходящий доступ к `api.telegram.org:443` и `api.anthropic.com:443` | Telegram и Claude |
 | Сетевой доступ к публикации 1С (`http(s)://<хост-1С>/copilot/hs/copilot/v1`) | данные |
 
