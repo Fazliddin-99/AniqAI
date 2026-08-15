@@ -163,20 +163,41 @@ async def on_confirm(cb: CallbackQuery) -> None:
         await cb.answer("Эта карточка устарела — используйте последнюю", show_alert=True)
         return
     _last_card.pop(chat_id, None)
+
+    def _restore() -> None:
+        """Вернуть предложение — при ошибке карточка должна остаться рабочей."""
+        _proposals[(chat_id, cb.message.message_id)] = op
+        _last_card[chat_id] = cb.message.message_id
+
     payload = {
         "telegram_user_id": cb.from_user.id,
         "chat_id": chat_id,
         "proposal": op.model_dump(),
         "external_id": f"tg-{chat_id}-{uuid.uuid4().hex[:8]}",
     }
-    r = await _http.post("/agent/confirm", json=payload)
-    if r.status_code == 403:
-        await cb.message.edit_reply_markup(reply_markup=None)
-        await bot.send_message(chat_id, _ACCESS_DENIED)
+    try:
+        r = await _http.post("/agent/confirm", json=payload)
+        if r.status_code == 403:
+            await cb.message.edit_reply_markup(reply_markup=None)
+            await bot.send_message(chat_id, _ACCESS_DENIED)
+            await cb.answer()
+            return
+        if r.status_code in (400, 404, 422):
+            # 1С отказала с причиной — показать её и оставить карточку живой.
+            reason = r.json().get("detail", "причина не указана")
+            _restore()
+            await bot.send_message(chat_id, f"⚠️ 1С не приняла операцию: {reason}")
+            await cb.answer()
+            return
+        r.raise_for_status()
+        resp = r.json()
+    except Exception as e:  # noqa: BLE001 — молчаливый провал кнопки недопустим
+        print(f"[confirm error] chat={chat_id}: {e!r}")
+        _restore()
+        await bot.send_message(chat_id, "Не удалось отправить в 1С (сбой связи). "
+                                        "Нажмите «Отправить» ещё раз.")
         await cb.answer()
         return
-    r.raise_for_status()
-    resp = r.json()
     await cb.message.edit_reply_markup(reply_markup=None)
     hit = " (уже был создан ранее)" if resp.get("idempotent_hit") else ""
     # Проведение — только по явной кнопке (решение владельца, ТЗ §6.1).

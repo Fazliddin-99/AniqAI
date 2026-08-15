@@ -90,7 +90,17 @@ def turn(body: TurnIn) -> TurnOut:
 def confirm(body: ConfirmIn) -> CreateOperationResponse:
     session = _session(_resolve(body.telegram_user_id), body.chat_id)
     op = body.proposal.model_copy(update={"external_id": body.external_id})
-    resp = session.onec.create_operation(op)
+    try:
+        resp = session.onec.create_operation(op)
+    except httpx.HTTPStatusError as e:
+        # Отказ 1С («тип не реализован», «итоги не сходятся»…) — пользователю
+        # дословно, а не молчаливой 500-й.
+        detail = "1С не приняла операцию."
+        try:
+            detail = e.response.json()["error"]["message"]
+        except Exception:  # noqa: BLE001 — тело может быть не по формату §6
+            pass
+        raise HTTPException(e.response.status_code, detail) from e
     session.note_confirmation(resp.draft_id)
     return resp
 
